@@ -1,6 +1,9 @@
 .eunit
 deps
+*.txt
 *.o
 *.beam
 *.plt
+*.bkp*
+go.sh
 erl_crash.dump
