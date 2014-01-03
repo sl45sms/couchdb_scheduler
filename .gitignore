@@ -4,6 +4,7 @@ deps
 *.o
 *.beam
 *.plt
+*.pdf
 *.bkp*
 go.sh
 erl_crash.dump
