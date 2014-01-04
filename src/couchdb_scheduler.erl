@@ -27,7 +27,7 @@ create_schedule(DbName,DDocName,ScheduleFunName,DocID,ScheduleTime,Acc) ->
                [RS|REST]=ScheduleTime,
                IsoTime=iso8601:format(RS),
                {ok,TaskUUID,ScheduleIsoTime}=create_schedule(DbName,DDocName,ScheduleFunName,DocID,IsoTime),
-         create_schedule(DbName,DDocName,ScheduleFunName,DocID,REST,lists:append(Acc,[{uuid,TaskUUID},{isodate,ScheduleIsoTime}])).
+         create_schedule(DbName,DDocName,ScheduleFunName,DocID,REST,lists:append(Acc,[{[{uuid,TaskUUID},{isodate,ScheduleIsoTime}]}])).
 
 create_schedule(DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)->
     Db=open_schedules_db(),
@@ -76,4 +76,4 @@ handle_schedules(#httpd{
            false->iso8601:parse_interval(ScheduleTime)
                        end,
      TaskIDS=create_schedule(DbName,DDocName,ScheduleFunName,DocID,ScheduleList,[]),
-     couch_httpd:send_json(Req, 200,{[{ok,<<"Scheduled">>},{docid,DocID},{tasks,{TaskIDS}}]}).
+     couch_httpd:send_json(Req, 200,{[{ok,<<"Scheduled">>},{docid,DocID},{tasks,TaskIDS}]}).
