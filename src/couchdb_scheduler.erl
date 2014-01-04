@@ -35,7 +35,7 @@ create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)-
     CouchDB_UUID = ?l2b(couch_config:get("couchdb", "uuid")),
     try 
         CreationIsoTime=iso8601:format(now()),
-        ScheduleID=?l2b([<<"schedule:">>,DbName,<<":">>,DDocName,<<":">>,ScheduleFunName,<<":">>,DocID,<<":at:">>,ScheduleIsoTime]),%TODO simpler? more complex?  %TODO another seperator?    
+        ScheduleID=?l2b([<<"schedule#">>,DbName,<<"#">>,DDocName,<<"#">>,ScheduleFunName,<<"#">>,DocID,<<"#at#">>,ScheduleIsoTime]),%TODO simpler? more complex?
         NewDoc = #doc{
           id=ScheduleID,
           body={[
