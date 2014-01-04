@@ -21,26 +21,27 @@ open_schedules_db() ->
     {ok, SchedulesDb} =  ensure_schedules_db_exists(DbName, []),
     SchedulesDb.
 
-create_schedule(_,_,_,_,[],Acc)->
+create_schedule(_,_,_,_,_,[],Acc)->
                 Acc;
-create_schedule(DbName,DDocName,ScheduleFunName,DocID,ScheduleTime,Acc) ->
+create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleTime,Acc) ->
                [RS|REST]=ScheduleTime,
                IsoTime=iso8601:format(RS),
-               {ok,TaskUUID,ScheduleIsoTime}=create_schedule(DbName,DDocName,ScheduleFunName,DocID,IsoTime),
-         create_schedule(DbName,DDocName,ScheduleFunName,DocID,REST,lists:append(Acc,[{[{uuid,TaskUUID},{isodate,ScheduleIsoTime}]}])).
+               {ok,TaskUUID,ScheduleIsoTime}=create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,IsoTime),
+         create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,REST,lists:append(Acc,[{[{uuid,TaskUUID},{isodate,ScheduleIsoTime}]}])).
 
-create_schedule(DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)->
+create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)->
     Db=open_schedules_db(),
     TaskID=couch_uuids:random(),
     CouchDB_UUID = ?l2b(couch_config:get("couchdb", "uuid")),
     try 
-        CreationIsoTime=iso8601:format(now()),%TODO ScheduleIsoTime>CreationIsoTime or throw error
-        ScheduleID=?l2b([<<"schedule:">>,DbName,<<":">>,DDocName,<<":">>,ScheduleFunName,<<":">>,DocID,<<":at:">>,ScheduleIsoTime]),%TODO simpler? more complex?      
+        CreationIsoTime=iso8601:format(now()),
+        ScheduleID=?l2b([<<"schedule:">>,DbName,<<":">>,DDocName,<<":">>,ScheduleFunName,<<":">>,DocID,<<":at:">>,ScheduleIsoTime]),%TODO simpler? more complex?  %TODO another seperator?    
         NewDoc = #doc{
           id=ScheduleID,
           body={[
                  {<<"_id">>, ScheduleID},
                  {<<"taskid">>, TaskID},
+                 {<<"username">>, UserName},
                  {<<"db">>,DbName},
                  {<<"ddoc">>,DDocName },
                  {<<"fun">>,ScheduleFunName },
@@ -68,12 +69,14 @@ create_schedule(DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)->
 
 
 handle_schedules(#httpd{
-        path_parts=[DbName, _, DDocName, _, ScheduleFunName,ScheduleTime,DocID]
+        path_parts=[DbName, _, DDocName, _, ScheduleFunName,ScheduleTime,DocID],user_ctx = UserCtx
     }=Req, _, _) ->
+     {user_ctx,UserName,Roles,_} = UserCtx,
+      %TODO what todo for null UserName?
       %TODO? docid optional....
       ScheduleList = case iso8601:is_datetime(ScheduleTime) of
            true-> [iso8601:parse(ScheduleTime)];
            false->iso8601:parse_interval(ScheduleTime)
                        end,
-     TaskIDS=create_schedule(DbName,DDocName,ScheduleFunName,DocID,ScheduleList,[]),
+     TaskIDS=create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleList,[]),
      couch_httpd:send_json(Req, 200,{[{ok,<<"Scheduled">>},{docid,DocID},{tasks,TaskIDS}]}).
