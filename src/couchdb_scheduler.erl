@@ -68,10 +68,20 @@ create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)-
     end.
 
 
+
+
 handle_schedules(#httpd{
         path_parts=[DbName, _, DDocName, _, ScheduleFunName,ScheduleTime,DocID],user_ctx = UserCtx
     }=Req, _, _) ->
-     {user_ctx,UserName,Roles,_} = UserCtx,
+    handle_schedules(DbName,DDocName,ScheduleFunName,ScheduleTime,DocID,UserCtx,Req);
+handle_schedules(#httpd{
+        path_parts=[DbName, _, DDocName, _, ScheduleFunName,ScheduleTime],user_ctx = UserCtx
+    }=Req, _, _) ->
+    handle_schedules(DbName,DDocName,ScheduleFunName,ScheduleTime,<<"null">>,UserCtx,Req).
+       
+handle_schedules(DbName,DDocName,ScheduleFunName,ScheduleTime,DocID,UserCtx,Req) ->
+   
+     {user_ctx,UserName,_,_} = UserCtx,
       %TODO what todo for null UserName?
       %TODO? docid optional....
       ScheduleList = case iso8601:is_datetime(ScheduleTime) of
