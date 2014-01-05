@@ -21,21 +21,21 @@ open_schedules_db() ->
     {ok, SchedulesDb} =  ensure_schedules_db_exists(DbName, []),
     SchedulesDb.
 
-create_schedule(_,_,_,_,_,[],Acc)->
+create_schedule(_,_,_,_,_,[],_,Acc)->
                 Acc;
-create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleTime,Acc) ->
+create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleTime,Params,Acc) ->
                [RS|REST]=ScheduleTime,
                IsoTime=iso8601:format(RS),
-               {ok,TaskUUID,ScheduleIsoTime}=create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,IsoTime),
-         create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,REST,lists:append(Acc,[{[{uuid,TaskUUID},{isodate,ScheduleIsoTime}]}])).
+               {ok,TaskUUID,ScheduleIsoTime}=create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,IsoTime,Params),
+         create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,REST,Params,lists:append(Acc,[{[{uuid,TaskUUID},{isodate,ScheduleIsoTime}]}])).
 
-create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)->
+create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleIsoTime,Params)->
     Db=open_schedules_db(),
     TaskID=couch_uuids:random(),
     CouchDB_UUID = ?l2b(couch_config:get("couchdb", "uuid")),
     try 
         CreationIsoTime=iso8601:format(now()),
-        ScheduleID=?l2b([<<"schedule#">>,DbName,<<"#">>,DDocName,<<"#">>,ScheduleFunName,<<"#">>,DocID,<<"#at#">>,ScheduleIsoTime]),%TODO simpler? more complex?
+        ScheduleID=?l2b([<<"schedule#">>,DbName,<<"#">>,DesignName,<<"#">>,ScheduleFunName,<<"#">>,DocID,<<"#at#">>,ScheduleIsoTime]),%TODO simpler? more complex?
         NewDoc = #doc{
           id=ScheduleID,
           body={[
@@ -43,8 +43,9 @@ create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)-
                  {<<"taskid">>, TaskID},
                  {<<"username">>, UserName},
                  {<<"db">>,DbName},
-                 {<<"ddoc">>,DDocName },
+                 {<<"ddoc">>,DesignName },
                  {<<"fun">>,ScheduleFunName },
+                 {<<"querystring">>,Params },
                  {<<"schedule_time">>,ScheduleIsoTime },
                  {<<"creation_time">>,CreationIsoTime },
                  {<<"doc">>, DocID},
@@ -68,25 +69,23 @@ create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleIsoTime)-
     end.
 
 
-
-
 handle_schedules(#httpd{
-        path_parts=[DbName, _, DDocName, _, ScheduleFunName,ScheduleTime,DocID],user_ctx = UserCtx
+        path_parts=[DbName, <<"_design">>, DesignName, _schedules, ScheduleFunName,ScheduleTime,DocID],user_ctx = UserCtx
     }=Req, _, _) ->
-    handle_schedules(DbName,DDocName,ScheduleFunName,ScheduleTime,DocID,UserCtx,Req);
+    handle_schedules(DbName,DesignName,ScheduleFunName,ScheduleTime,DocID,UserCtx,Req);
 handle_schedules(#httpd{
-        path_parts=[DbName, _, DDocName, _, ScheduleFunName,ScheduleTime],user_ctx = UserCtx
+        path_parts=[DbName, <<"_design">>, DesignName, _schedules, ScheduleFunName,ScheduleTime],user_ctx = UserCtx
     }=Req, _, _) ->
-    handle_schedules(DbName,DDocName,ScheduleFunName,ScheduleTime,<<"null">>,UserCtx,Req).
-       
-handle_schedules(DbName,DDocName,ScheduleFunName,ScheduleTime,DocID,UserCtx,Req) ->
-   
+    handle_schedules(DbName,DesignName,ScheduleFunName,ScheduleTime,<<"null">>,UserCtx,Req).
+    
+handle_schedules(DbName,DesignName,ScheduleFunName,ScheduleTime,DocID,UserCtx,Req) ->
      {user_ctx,UserName,_,_} = UserCtx,
       %TODO what todo for null UserName?
-      %TODO? docid optional....
+      QueryStringData=[{list_to_binary(Key),list_to_binary(Val)} ||{Key,Val} <-couch_httpd:qs(Req)],
+       ?LOG_DEBUG("Query = ~p", [QueryStringData]),
       ScheduleList = case iso8601:is_datetime(ScheduleTime) of
            true-> [iso8601:parse(ScheduleTime)];
            false->iso8601:parse_interval(ScheduleTime)
                        end,
-     TaskIDS=create_schedule(UserName,DbName,DDocName,ScheduleFunName,DocID,ScheduleList,[]),
+     TaskIDS=create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleList,{QueryStringData},[]),
      couch_httpd:send_json(Req, 200,{[{ok,<<"Scheduled">>},{docid,DocID},{tasks,TaskIDS}]}).
