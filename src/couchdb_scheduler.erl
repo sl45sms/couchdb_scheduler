@@ -81,11 +81,11 @@ handle_schedules(#httpd{
 handle_schedules(DbName,DesignName,ScheduleFunName,ScheduleTime,DocID,UserCtx,Req) ->
      {user_ctx,UserName,_,_} = UserCtx,
       %TODO what todo for null UserName?
-      QueryStringData=[{list_to_binary(Key),list_to_binary(Val)} ||{Key,Val} <-couch_httpd:qs(Req)],
+      QueryStringData={[{list_to_binary(Key),list_to_binary(Val)} ||{Key,Val} <-couch_httpd:qs(Req)]},
        ?LOG_DEBUG("Query = ~p", [QueryStringData]),
       ScheduleList = case iso8601:is_datetime(ScheduleTime) of
            true-> [iso8601:parse(ScheduleTime)];
            false->iso8601:parse_interval(ScheduleTime)
                        end,
-     TaskIDS=create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleList,{QueryStringData},[]),
+     TaskIDS=create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleList,QueryStringData,[]),
      couch_httpd:send_json(Req, 200,{[{ok,<<"Scheduled">>},{docid,DocID},{tasks,TaskIDS}]}).
