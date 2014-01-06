@@ -68,7 +68,6 @@ create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleIsoTime
         TaskID
     end.
 
-
 handle_schedules(#httpd{
         path_parts=[DbName, <<"_design">>, DesignName, _schedules, ScheduleFunName,ScheduleTime,DocID],user_ctx = UserCtx
     }=Req, _, _) ->
