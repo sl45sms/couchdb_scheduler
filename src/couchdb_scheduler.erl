@@ -60,7 +60,7 @@ create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleIsoTime
                 ?LOG_DEBUG("Schedule fun created for ~p:~p", [ScheduleFunName, DocID]),
                 {ok, TaskID, ScheduleIsoTime};
             Error ->
-                ?LOG_ERROR("Could not create schedule for ~p:~p Reason:", [ScheduleFunName, DocID, Error]),
+                ?LOG_ERROR("Could not create schedule for ~p:~p Reason: ~p", [ScheduleFunName, DocID, Error]),
                 throw(could_not_create_schedule)
         end
     after
