@@ -11,24 +11,24 @@
 
 
 exec_task({ServerPid,DocID})->
-%TODO anoigo to docid 
-% perno ta db ddoc webapp doc fun querystring
-%kai andimiourgo to record
-%ta prota tesera mallon einai perita...
-
-%TODO mallon xriazete ena plires record gia na doulepsei......
-Req = #httpd{
-path_parts=[<<"horde">>,<<"_design">>,<<"webapp">>,<<"_updates">>,<<"mycounter">>,<<"a01aaad1ca9d39ad972c75d3aa000925">>],
-requested_path_parts=[<<"horde">>,<<"_design">>,<<"webapp">>,
-                              <<"_updates">>,<<"mycounter">>,
-                              <<"a01aaad1ca9d39ad972c75d3aa000925?test=ttt&another=aaa&auga=melata">>]
-},
-
+%TODO db req app
 {ok, Db}=chronos_utils:open_db(<<"horde">>),
-DDoc = couch_db:open_doc(Db, <<"_design/webapp">>),
-% ServerPid !  {exectask,<<"something">>},
-StartTaskTimer = erlang:send_after(1, ServerPid, {exectask,{Req,Db,DDoc}}),
-{ok,StartTaskTimer}.
+{ok,DDoc} = couch_db:open_doc(Db, <<"_design/webapp">>),
+
+{ok, Doc} = couch_db:open_doc(Db, <<"a01aaad1ca9d39ad972c75d3aa000925">>),
+JsonDoc = couch_query_servers:json_doc(Doc),
+
+[<<"up">>, {NewJsonDoc}, {JsonResp0}] = couch_query_servers:ddoc_prompt(DDoc, [<<"updates">>,<<"mycounter">>], [JsonDoc,<<"">>]),
+%TODO cana case se periptosh pou den einai up
+NewDoc = couch_doc:from_json_obj({NewJsonDoc}),
+couch_doc:validate_docid(NewDoc#doc.id),
+{ok, NewRev} = couch_db:update_doc(Db, NewDoc, []),
+NewRevStr = couch_doc:rev_to_str(NewRev),
+
+?LOG_DEBUG("after ddoc_prompt new rev= ~p",[NewRevStr]),
+
+{ok,NewRevStr}.
+
 
 
 do_earlier_tasks(State)->
@@ -36,7 +36,6 @@ do_earlier_tasks(State)->
 {Db,ServerPid} = State,
     ?LOG_DEBUG("do_earlier_tasks",[]),
   timer:sleep(1000),
- %Q=couch_mrview:query_view(Db, <<"_design/getbydate">>, <<"returnpasttasks">>),
 Q=couch_mrview:query_view(Db, <<"_design/getbydate">>, <<"returnpasttasks">>,[{limit, 1},{stale,false}]),
 case Q of
 {ok,[{meta,[{total,Total},{offset,_}]},{row,[{id,DocID},_,_]}]}->
@@ -58,24 +57,17 @@ init([]) ->
     Db=chronos_utils:open_schedules_db(),
     {ok,{StartExamineTimer,Db,self()}}.
 
-handle_info({exectask,What},State)->
-{Req,Db,DDoc} = What,
-couch_mrview_show:handle_doc_update_req(Req, Db, DDoc),
-%?LOG_DEBUG("exec task DB = ~p DDoc =~p  Req = ~p", [Db,DDoc,Req]),
-?LOG_DEBUG("After handle doc",[]),
-    {noreply,State};
             
 handle_info(examine,State)->
   {ExamineTimer,Db,ServerPid}=State,
   erlang:cancel_timer(ExamineTimer),
-  %?LOG_DEBUG("Just in time ", []),
   %TODO Open every doc in schedules db and... that may takes more than a examine_period() on large db...
   %but no problem because examine restarted after...
 
   %Get all tasks with schedule_time on past and execute them
   %...Make it configurable if actual execute or delete past tasks
 
- _Pid = spawn_link(?MODULE,do_earlier_tasks,[{Db,ServerPid}]),
+  _Pid = spawn_link(?MODULE,do_earlier_tasks,[{Db,ServerPid}]),   
 % do i need the Pid?
  
 %schedule (erlang:send_after) all tasks that have a schedule_time at the next examine_period()
