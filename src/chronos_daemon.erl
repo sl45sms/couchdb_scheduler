@@ -10,24 +10,49 @@
 
 
 
-exec_task({ServerPid,DocID})->
-%TODO db req app
-{ok, Db}=chronos_utils:open_db(<<"horde">>),
-{ok,DDoc} = couch_db:open_doc(Db, <<"_design/webapp">>),
+exec_task({ServerPid,Db,DocID})->
+%open the doc from schedules
+{ok, Doc} = couch_db:open_doc(Db, DocID),
+#doc{body = Body} = Doc,
+{[{<<"_id">>,_DocID},
+  {<<"taskid">>,TaskID},
+  {<<"username">>,UserName},
+  {<<"db">>,TargetDb},
+  {<<"ddoc">>,TargetDDoc},
+  {<<"fun">>,TargetFun},
+  {<<"querystring">>,Query},
+  {<<"schedule_time">>,_ScheduleTime},
+  {<<"creation_time">>,_CreationTime},
+  {<<"doc">>,TargetDoc},
+  {<<"performed">>,_},
+  {<<"couchdb_uuid">>,_ServerUUID}]}=couch_compress:decompress(Body),
 
-{ok, Doc} = couch_db:open_doc(Db, <<"a01aaad1ca9d39ad972c75d3aa000925">>),
-JsonDoc = couch_query_servers:json_doc(Doc),
-
-[<<"up">>, {NewJsonDoc}, {JsonResp0}] = couch_query_servers:ddoc_prompt(DDoc, [<<"updates">>,<<"mycounter">>], [JsonDoc,<<"">>]),
+%Do stuf on target
+{ok,TDb}=chronos_utils:open_db(TargetDb),
+{ok,TDDoc} = couch_db:open_doc(TDb, <<"_design/",TargetDDoc/bitstring>>),
+{ok,TDoc} = couch_db:open_doc(TDb, TargetDoc),
+JsonDoc = couch_query_servers:json_doc(TDoc),
+[<<"up">>, {NewJsonDoc}, {JsonResp0}] = couch_query_servers:ddoc_prompt(TDDoc, [<<"updates">>,TargetFun], [JsonDoc,<<"">>]),%TODO query prepei na exei thn morfh tou req?
 %TODO cana case se periptosh pou den einai up
 NewDoc = couch_doc:from_json_obj({NewJsonDoc}),
 couch_doc:validate_docid(NewDoc#doc.id),
-{ok, NewRev} = couch_db:update_doc(Db, NewDoc, []),
+{ok, NewRev} = couch_db:update_doc(TDb, NewDoc, []),
 NewRevStr = couch_doc:rev_to_str(NewRev),
 
-?LOG_DEBUG("after ddoc_prompt new rev= ~p",[NewRevStr]),
 
-{ok,NewRevStr}.
+
+
+
+%TODO delete shedule doc
+#doc{id=DELDOCID}=Doc,
+?LOG_DEBUG("delete this doc = ~p",[DELDOCID]), %Ok kanei delete alla fenete oti tou pasarei sinexeia to idio docID
+#doc{revs={Start, [Rev|_]}}=Doc,
+DelDoc = Doc#doc{revs={Start, [Rev]}, deleted=true},
+{ok, [Result]} = couch_db:update_docs(Db, [DelDoc], []),
+?LOG_DEBUG("delete doc have= ~p",[Result]),
+
+?LOG_DEBUG("doc have= ~p",[NewRevStr]),
+ok.
 
 
 
@@ -39,7 +64,7 @@ do_earlier_tasks(State)->
 Q=couch_mrview:query_view(Db, <<"_design/getbydate">>, <<"returnpasttasks">>,[{limit, 1},{stale,false}]),
 case Q of
 {ok,[{meta,[{total,Total},{offset,_}]},{row,[{id,DocID},_,_]}]}->
-     A=exec_task({ServerPid,DocID}),
+     A=exec_task({ServerPid,Db,DocID}),
      ?LOG_DEBUG("what exec ~p",[A]),
      {ok,{A,State}};
 {ok,[{meta,[{total,0},{offset,_}]}]}->
@@ -48,7 +73,6 @@ case Q of
 end.    
 
 start_link() ->
-    ?LOG_DEBUG("chronos_daemon: started..", []),
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init([]) ->
