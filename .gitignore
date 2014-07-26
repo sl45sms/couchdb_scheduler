@@ -6,5 +6,5 @@ deps
 *.plt
 *.pdf
 *.bkp*
-go.sh
+*.sh
 erl_crash.dump

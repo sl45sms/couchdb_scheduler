@@ -15,7 +15,7 @@ ensure_schedules_db_exists(DbName, Options) ->
      ?LOG_DEBUG("DB created: ~p", [DbName]), 
      {ok, Db}
     end.
-
+%TODO http://docs.couchdb.org/en/latest/api/local.html
 open_schedules_db() ->
     DbName = ?l2b(couch_config:get("couchdb_scheduler", "schedules_db","schedules")),%can't name it _schedules underscore is limited only for _users _replicator                                                                                      %so the only way to workarround is to use db without underscore...
     {ok, SchedulesDb} =  ensure_schedules_db_exists(DbName, []),
@@ -64,6 +64,7 @@ create_schedule(UserName,DbName,DesignName,ScheduleFunName,DocID,ScheduleIsoTime
                 throw(could_not_create_schedule)
         end
     after
+        couch_db:ensure_full_commit(Db),
         couch_db:close(Db),
         TaskID
     end.

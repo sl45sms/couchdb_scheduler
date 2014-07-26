@@ -10,6 +10,7 @@
 
 
 
+
 exec_task({ServerPid,Db,DocID})->
 %open the doc from schedules
 {ok, Doc} = couch_db:open_doc(Db, DocID),
@@ -38,20 +39,26 @@ NewDoc = couch_doc:from_json_obj({NewJsonDoc}),
 couch_doc:validate_docid(NewDoc#doc.id),
 {ok, NewRev} = couch_db:update_doc(TDb, NewDoc, []),
 NewRevStr = couch_doc:rev_to_str(NewRev),
+%?LOG_DEBUG("doc new Rev= ~p",[NewRevStr]),
 
 
 
 
+%na dokimaso anti gia delete na kano update to performed se true...
 
-%TODO delete shedule doc
-#doc{id=DELDOCID}=Doc,
-?LOG_DEBUG("delete this doc = ~p",[DELDOCID]), %Ok kanei delete alla fenete oti tou pasarei sinexeia to idio docID
-#doc{revs={Start, [Rev|_]}}=Doc,
+%%TODO delete shedule doc AUTO DOULEVEI to purge exei kapio thema....
+#doc{revs={Start, [Rev|_]},id=DELDOCID}=Doc,
+?LOG_DEBUG("delete this doc = ~p",[DELDOCID]),%Ok kanei delete alla fenete oti to view tou pasarei sinexeia to idio docID
+DrevStr=couch_doc:rev_to_str({Start,Rev}),
+?LOG_DEBUG("delete this doc REV= ~p",[DrevStr]),
 DelDoc = Doc#doc{revs={Start, [Rev]}, deleted=true},
 {ok, [Result]} = couch_db:update_docs(Db, [DelDoc], []),
 ?LOG_DEBUG("delete doc have= ~p",[Result]),
+%PResult=couch_db:purge_docs(Db, [Result]), 
+%?LOG_DEBUG("purge doc have= ~p",[PResult]),
 
-?LOG_DEBUG("doc have= ~p",[NewRevStr]),
+
+
 ok.
 
 
@@ -61,11 +68,27 @@ do_earlier_tasks(State)->
 {Db,ServerPid} = State,
     ?LOG_DEBUG("do_earlier_tasks",[]),
   timer:sleep(1000),
-Q=couch_mrview:query_view(Db, <<"_design/getbydate">>, <<"returnpasttasks">>,[{limit, 1},{stale,false}]),
-case Q of
+  %TODO mipos na valo auto? query_all_docs
+  %mallon prepei na vazo to ddoc kathe fora???...
+
+
+  
+%AL=couch_mrview:query_all_docs(Db,[]),%{'include_docs','true'} %kai auto to gamimeno fenete na cashari to index...
+%?LOG_DEBUG("All Docs ~p",[AL]),
+  
+  
+%include_docs TODO esti isos na giente pio aplo to exec_task mias kai den xriazete na to vrisko apo to docid...
+%%%%h lysh einai mallon na ftiakso ena temp view.. oxi giti einai xronovoro...
+%pos sto kalo kano reindex??????
+%INDEX=couch_mrview_index:init(Db, <<"getbydate">>),
+%?LOG_DEBUG("INDEX ~p",[INDEX]), 
+ 
+Q=couch_mrview:query_view(Db, <<"_design/getbydate">>, <<"returnpasttasks">>,[{'limit', 1},{'stale','update_after'}]),%{stale,false} ...to extra kai to keys den pianei... casharei to gamimeno...
+?LOG_DEBUG("Query ~p",[Q]),%TODO h couch_mrview:query_view fenete san na kasarh... akomh kai an sviso thn returnpasttasks me to futon sinexizei na doulevei!!
+case Q of                  %isos an prin ksanagrafo me allo rev thn returnpasttasks?? h ama kano purge to eggrafo? Hakoma kalitera na ksexaso thn view kai na ftiakso mia dikia mou map....
 {ok,[{meta,[{total,Total},{offset,_}]},{row,[{id,DocID},_,_]}]}->
      A=exec_task({ServerPid,Db,DocID}),
-     ?LOG_DEBUG("what exec ~p",[A]),
+     ?LOG_DEBUG("exec_task ~p",[A]),
      {ok,{A,State}};
 {ok,[{meta,[{total,0},{offset,_}]}]}->
      ?LOG_DEBUG("No past tasks",[]),

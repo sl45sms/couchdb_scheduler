@@ -4,7 +4,13 @@
 
 
 -define(SCHEDULES_DB_DOC_RETURNPAST_FUN,<<"
-function(doc){ScheduleDate= new Date(doc.schedule_time);MyDate = new Date();if (ScheduleDate<MyDate) emit('PAST '+doc.schedule_time, doc._rev);}
+function(doc){
+      if (doc._deleted!==true&&doc.performed===false){    
+      ScheduleDate= new Date(doc.schedule_time);
+      MyDate = new Date();
+      if (ScheduleDate<MyDate) emit('PAST '+doc.schedule_time, doc._rev);
+                             }
+      }
 ">>).
 
 -define(SCHEDULES_DB_DOC_RETURNFUTURE_FUN,<<"
